@@ -119,12 +119,18 @@ async def add_user(new_user: UserCreate, db: DBDep, admin: AdminDep):
     - **data_limit** must be in Bytes, e.g. 1073741824B = 1GB
     - **services** list of service ids
     """
+    db_admin = crud.get_admin(db, admin.username)
+    if db_admin.traffic_limit:
+        if new_user.data_limit > db_admin.traffic_limit - db_admin.users_data_usage:
+            raise HTTPException(status_code=400, detail="Not enough traffic left")
+        if not new_user.data_limit:
+            raise HTTPException(status_code=400, detail="Can't create unlimited user")
 
     try:
         db_user = crud.create_user(
             db,
             new_user,
-            admin=crud.get_admin(db, admin.username),
+            admin=db_admin,
             allowed_services=(
                 admin.service_ids
                 if not admin.is_sudo and not admin.all_services_access
@@ -223,6 +229,15 @@ async def modify_user(
     active_before = db_user.is_active
 
     old_inbounds = {(i.node_id, i.protocol, i.tag) for i in db_user.inbounds}
+    if (
+        modifications.used_traffic is not None
+        and modifications.used_traffic > db_user.used_traffic
+    ):
+        crud.increase_user_used_traffic(
+            db, db_user, modifications.used_traffic - db_user.used_traffic
+        )
+        modifications.used_traffic = None
+
     new_user = crud.update_user(
         db,
         db_user,

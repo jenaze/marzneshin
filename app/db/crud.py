@@ -641,6 +641,14 @@ def create_user(
     return dbuser
 
 
+def increase_user_used_traffic(db: Session, dbuser: User, amount: int):
+    dbuser.used_traffic += amount
+    dbuser.lifetime_used_traffic += amount
+    db.commit()
+    db.refresh(dbuser)
+    return dbuser
+
+
 def remove_user(db: Session, dbuser: User):
     dbuser.username = None
     dbuser.removed = True
@@ -804,6 +812,7 @@ def update_admin(
         "all_services_access",
         "modify_users_access",
         "subscription_url_prefix",
+        "traffic_limit",
     ]:
         if not isinstance(getattr(modifications, attribute), NoneType):
             setattr(dbadmin, attribute, getattr(modifications, attribute))
