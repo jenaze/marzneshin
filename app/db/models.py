@@ -109,6 +109,12 @@ class Admin(Base):
         default="",
         server_default=sqlalchemy.sql.text(""),
     )
+    traffic_limit = Column(
+        BigInteger,
+        nullable=False,
+        default=0,
+        server_default=sqlalchemy.sql.text("0"),
+    )
 
     @property
     def service_ids(self):

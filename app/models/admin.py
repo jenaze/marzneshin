@@ -23,6 +23,7 @@ class Admin(BaseModel):
     modify_users_access: bool = True
     service_ids: list = []
     subscription_url_prefix: str = ""
+    traffic_limit: int = 0
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -66,6 +67,7 @@ class AdminPartialModify(AdminModify):
     modify_users_access: bool | None = None
     service_ids: list | None = None
     subscription_url_prefix: str | None = None
+    traffic_limit: int | None = None
 
 
 class AdminInDB(Admin):

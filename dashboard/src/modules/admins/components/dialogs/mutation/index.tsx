@@ -26,6 +26,7 @@ import {
     SubscriptionUrlPrefixField,
     SudoPrivilageField,
     AllServicesAccessField,
+    TrafficLimitField,
 } from "./fields";
 import { useMutationDialog, MutationDialogProps } from "@marzneshin/common/hooks";
 
@@ -41,6 +42,7 @@ export const AdminsMutationDialog: FC<MutationDialogProps<AdminType>> = ({
         is_sudo: false,
         enabled: true,
         modify_users_access: true,
+        traffic_limit: 0,
     }), [])
 
     const { onOpenChange, open, form, handleSubmit } = useMutationDialog({
@@ -76,6 +78,7 @@ export const AdminsMutationDialog: FC<MutationDialogProps<AdminType>> = ({
                                     <UsernameField disabled={!!entity} />
                                     <PasswordField change={change} handleChange={setChange} />
                                     <SubscriptionUrlPrefixField />
+                                    <TrafficLimitField />
                                     <EnabledField />
                                     <ModifyUsersAccessField />
                                     <SudoPrivilageField />
