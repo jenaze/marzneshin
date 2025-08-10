@@ -139,7 +139,7 @@ install_marzneshin() {
     colorized_echo green "File saved in $CONFIG_DIR/docker-compose.yml"
 	if [ "$nightly" = true ]; then
 	    colorized_echo red "setting compose tag to nightly."
-	 	sed -ri "s/(dawsh\/marzneshin:)latest/\1nightly/g" $CONFIG_DIR/docker-compose.yml
+	 	sed -ri "s/(jenaze\/marzneshin:)latest/\1nightly/g" $CONFIG_DIR/docker-compose.yml
 	fi
  
     colorized_echo blue "Fetching example .env file"
