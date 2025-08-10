@@ -139,6 +139,13 @@
         }
       },
       "usage_coefficient": "ضریب مصرف",
+      "traffic_calculation_method": "روش محاسبه ترافیک",
+      "traffic_calculation_methods": {
+        "sum": "مجموع آپلود و دانلود",
+        "uplink_only": "فقط آپلود",
+        "downlink_only": "فقط دانلود"
+      },
+      "traffic_calculation_method_desc": "روشی که ترافیک کاربر محاسبه می‌شود",
       "connection_backend": "بکند اتصال",
       "connection_backend_desc": "نوع اتصال را مشخص می‌کند",
       "certificate-alert": {

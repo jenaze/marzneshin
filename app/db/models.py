@@ -28,7 +28,7 @@ from sqlalchemy.sql.expression import text
 
 from app.config.env import SUBSCRIPTION_URL_PREFIX
 from app.db.base import Base
-from app.models.node import NodeStatus
+from app.models.node import NodeStatus, TrafficCalculationMethod
 from app.models.proxy import (
     InboundHostFingerprint,
     InboundHostSecurity,
@@ -482,6 +482,12 @@ class Node(Base):
     )
     usage_coefficient = Column(
         Float, nullable=False, server_default=text("1.0"), default=1
+    )
+    traffic_calculation_method = Column(
+        Enum(TrafficCalculationMethod),
+        nullable=False,
+        server_default=TrafficCalculationMethod.SUM,
+        default=TrafficCalculationMethod.SUM,
     )
 
     @property

@@ -158,6 +158,13 @@
         }
       },
       "usage_coefficient": "Usage Coefficient",
+      "traffic_calculation_method": "Traffic Calculation Method",
+      "traffic_calculation_methods": {
+        "sum": "Sum of Upload and Download",
+        "uplink_only": "Upload Only",
+        "downlink_only": "Download Only"
+      },
+      "traffic_calculation_method_desc": "Method to calculate user traffic",
       "connection_backend": "Connection Backend",
       "connection_backend_desc": "Used for the remote connection",
       "certificate-alert": {

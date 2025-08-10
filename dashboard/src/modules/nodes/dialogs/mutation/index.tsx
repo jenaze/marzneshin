@@ -45,6 +45,7 @@ export const MutationDialog: FC<MutationDialogProps<NodeType>> = ({
         port: 62050,
         usage_coefficient: 1,
         connection_backend: "grpclib",
+        traffic_calculation_method: "sum",
     }), []);
 
     const { onOpenChange, open, form, handleSubmit } = useMutationDialog({
@@ -151,6 +152,34 @@ export const MutationDialog: FC<MutationDialogProps<NodeType>> = ({
                                 )}
                             />
                         </HStack>
+                        <FormField
+                            control={form.control}
+                            name="traffic_calculation_method"
+                            render={({ field }) => (
+                                <FormItem className="w-full">
+                                    <FormLabel>{t("page.nodes.traffic_calculation_method")}</FormLabel>
+                                    <Select
+                                        onValueChange={field.onChange}
+                                        defaultValue={field.value}
+                                    >
+                                        <FormControl>
+                                            <SelectTrigger>
+                                                <SelectValue placeholder="Traffic Calculation Method" />
+                                            </SelectTrigger>
+                                        </FormControl>
+                                        <SelectContent>
+                                            <SelectItem value="sum">{t("page.nodes.traffic_calculation_methods.sum")}</SelectItem>
+                                            <SelectItem value="uplink_only">{t("page.nodes.traffic_calculation_methods.uplink_only")}</SelectItem>
+                                            <SelectItem value="downlink_only">{t("page.nodes.traffic_calculation_methods.downlink_only")}</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                    <FormDescription>
+                                        {t("page.nodes.traffic_calculation_method_desc")}
+                                    </FormDescription>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
                         <Button
                             className="mt-3 w-full font-semibold"
                             type="submit"

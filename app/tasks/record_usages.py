@@ -11,9 +11,7 @@ from app.marznode import MarzNodeBase
 from app.tasks.data_usage_percent_reached import data_usage_percent_reached
 
 
-def record_user_usage_logs(
-    params: list, node_id: int, consumption_factor: int = 1
-):
+def record_user_usage_logs(params: list, node_id: int):
     if not params:
         return
 
@@ -64,7 +62,10 @@ def record_user_usage_logs(
         db.connection().execute(
             stmt,
             [
-                {**usage, "value": int(usage["value"] * consumption_factor)}
+                {
+                    "uid": usage["uid"],
+                    "value": int(usage.get("value") or 0),
+                }
                 for usage in params
             ],
             execution_options={"synchronize_session": None},
@@ -113,17 +114,45 @@ def record_node_stats(node_id: int, usage: int):
         db.commit()
 
 
+from app.models.node import TrafficCalculationMethod
+
+
 async def get_users_stats(
     node_id: int, node: MarzNodeBase
 ) -> tuple[int, list[dict]]:
     try:
         params = list()
         for stat in await asyncio.wait_for(node.fetch_users_stats(), 10):
-            if stat.usage:
-                params.append({"uid": stat.uid, "value": stat.usage})
+            uplink = getattr(stat, "uplink", 0)
+            downlink = getattr(stat, "downlink", 0)
+            if hasattr(stat, "usage"):
+                # For backward compatibility with older marznode versions
+                # TODO: V2 - Remove this
+                if stat.usage:
+                    params.append({"uid": stat.uid, "value": stat.usage})
+            elif uplink or downlink:
+                params.append(
+                    {"uid": stat.uid, "uplink": uplink, "downlink": downlink}
+                )
         return node_id, params
     except:
         return node_id, []
+
+
+def _calculate_usage(param, traffic_method):
+    if "value" in param:
+        # For backward compatibility with older marznode versions
+        # TODO: V2 - Remove this
+        return param["value"]
+    else:
+        if traffic_method == TrafficCalculationMethod.SUM:
+            return param["uplink"] + param["downlink"]
+        elif traffic_method == TrafficCalculationMethod.UPLINK_ONLY:
+            return param["uplink"]
+        elif traffic_method == TrafficCalculationMethod.DOWNLINK_ONLY:
+            return param["downlink"]
+        else:
+            return param["uplink"] + param["downlink"]
 
 
 async def record_user_usages():
@@ -139,17 +168,19 @@ async def record_user_usages():
 
     users_usage = defaultdict(int)
     for node_id, params in api_params.items():
-        coefficient = (
-            node.usage_coefficient
-            if (node := marznode.nodes.get(node_id))
-            else 1
-        )
+        node = marznode.nodes.get(node_id)
+        if not node:
+            continue
+        coefficient = node.usage_coefficient
+        traffic_method = node.traffic_calculation_method
+
         node_usage = 0
         for param in params:
+            value = _calculate_usage(param, traffic_method)
             users_usage[param["uid"]] += int(
-                param["value"] * coefficient
+                value * coefficient
             )  # apply the usage coefficient
-            node_usage += param["value"]
+            node_usage += value
         record_node_stats(node_id, node_usage)
 
     users_usage = list(
@@ -175,12 +206,17 @@ async def record_user_usages():
         db.commit()
 
     for node_id, params in api_params.items():
+        node = marznode.nodes.get(node_id)
+        if not node:
+            continue
+        coefficient = node.usage_coefficient
+        traffic_method = node.traffic_calculation_method
+
+        for param in params:
+            param["value"] = _calculate_usage(
+                param, traffic_method
+            ) * coefficient
         record_user_usage_logs(
             params,
             node_id,
-            (
-                node.usage_coefficient
-                if (node := marznode.nodes.get(node_id))
-                else 1
-            ),
         )

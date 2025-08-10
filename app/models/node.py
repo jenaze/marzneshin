@@ -41,6 +41,12 @@ class NodeSettings(BaseModel):
     certificate: str
 
 
+class TrafficCalculationMethod(str, Enum):
+    SUM = "sum"
+    UPLINK_ONLY = "uplink_only"
+    DOWNLINK_ONLY = "downlink_only"
+
+
 class Node(BaseModel):
     id: int | None = Field(None)
     name: str
@@ -50,6 +56,9 @@ class Node(BaseModel):
         default=NodeConnectionBackend.grpclib
     )
     usage_coefficient: float = Field(ge=0, default=1.0)
+    traffic_calculation_method: TrafficCalculationMethod = Field(
+        default=TrafficCalculationMethod.SUM
+    )
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -61,6 +70,7 @@ class NodeCreate(Node):
                 "address": "192.168.1.1",
                 "port": 53042,
                 "usage_coefficient": 1,
+                "traffic_calculation_method": "sum",
             }
         }
     )
@@ -73,6 +83,7 @@ class NodeModify(Node):
     connection_backend: NodeConnectionBackend | None = Field(None)
     status: NodeStatus | None = Field(None)
     usage_coefficient: float | None = Field(None, ge=0)
+    traffic_calculation_method: TrafficCalculationMethod | None = Field(None)
     model_config = ConfigDict(
         json_schema_extra={
             "example": {
@@ -81,6 +92,7 @@ class NodeModify(Node):
                 "port": 53042,
                 "status": "disabled",
                 "usage_coefficient": 1.0,
+                "traffic_calculation_method": "sum",
             }
         }
     )
