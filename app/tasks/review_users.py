@@ -1,74 +1,131 @@
 import asyncio
 import logging
 from datetime import datetime, timedelta
-from typing import TYPE_CHECKING
+
+from sqlalchemy import and_, func, or_, update
+from sqlalchemy.orm import joinedload
 
 from app import marznode
-from app.db import (
-    GetDB,
-    get_users,
-)
+from app.db import GetDB
+from app.db.models import User
 from app.models.notification import UserNotification
 from app.models.user import (
-    UserResponse,
     UserExpireStrategy,
+    UserResponse,
 )
 from app.notification import notify
 
-if TYPE_CHECKING:
-    pass
-
-
 logger = logging.getLogger(__name__)
+
+
+def _get_users_pending_deactivation_condition():
+    return and_(
+        User.removed == False,
+        User.activated == True,
+        User.is_active == False,
+    )
+
+
+def _get_users_to_deactivate(db, pending_deactivation_condition):
+    return (
+        db.query(User)
+        .options(
+            joinedload(User.inbounds),
+            joinedload(User.services),
+            joinedload(User.admin),
+        )
+        .filter(pending_deactivation_condition)
+        .all()
+    )
+
+
+def _get_on_hold_users_ready_for_activation(db, now: datetime):
+    return (
+        db.query(User.id, User.username, User.usage_duration)
+        .filter(
+            User.removed == False,
+            User.expire_strategy == UserExpireStrategy.START_ON_FIRST_USE,
+            User.is_active == True,
+            or_(
+                and_(
+                    User.online_at.isnot(None),
+                    User.online_at
+                    >= func.coalesce(User.edit_at, User.created_at),
+                ),
+                and_(
+                    User.activation_deadline.isnot(None),
+                    User.activation_deadline <= now,
+                ),
+            ),
+        )
+        .all()
+    )
 
 
 async def review_users():
     now = datetime.utcnow()
     with GetDB() as db:
-        for user in get_users(db, activated=True, is_active=False):
-            """looking for expired/to be limited users who are still active"""
+        pending_deactivation_condition = (
+            _get_users_pending_deactivation_condition()
+        )
+        users_to_deactivate = _get_users_to_deactivate(
+            db, pending_deactivation_condition
+        )
+        deactivated_user_payloads: list[tuple[str, UserResponse]] = []
 
-            marznode.operations.update_user(user, remove=True)
-            user.activated = False
+        if users_to_deactivate:
+            db.execute(
+                update(User)
+                .where(pending_deactivation_condition)
+                .values(activated=False),
+                execution_options={"synchronize_session": "fetch"},
+            )
+
+            for user in users_to_deactivate:
+                marznode.operations.update_user(user, remove=True)
+                deactivated_user_payloads.append(
+                    (
+                        user.username,
+                        UserResponse.model_validate(user),
+                    )
+                )
+
+        users_ready_for_activation = _get_on_hold_users_ready_for_activation(
+            db, now
+        )
+        activate_updates = []
+        activated_usernames = []
+        for user_id, username, usage_duration in users_ready_for_activation:
+            if usage_duration is None:
+                continue
+            activate_updates.append(
+                {
+                    "id": user_id,
+                    "expire_date": now
+                    + timedelta(seconds=usage_duration),
+                    "expire_strategy": UserExpireStrategy.FIXED_DATE,
+                }
+            )
+            activated_usernames.append(username)
+
+        if activate_updates:
+            db.bulk_update_mappings(User, activate_updates)
+
+        if users_to_deactivate or activate_updates:
             db.commit()
-            db.refresh(user)
 
+        for username, user_payload in deactivated_user_payloads:
             asyncio.ensure_future(
                 notify(
                     action=UserNotification.Action.user_deactivated,
-                    user=UserResponse.model_validate(user),
+                    user=user_payload,
                 )
             )
-
             logger.info(
                 "User `%s` activation state changed to `%s`",
-                user.username,
-                str(user.activated),
+                username,
+                False,
             )
 
-        for user in get_users(
-            db,
-            expire_strategy=UserExpireStrategy.START_ON_FIRST_USE,
-            is_active=True,
-        ):
-            """looking for to be activated, on hold users"""
-            base_time = user.edit_at or user.created_at
-
-            # Check if the user is online After or at 'base_time' or...
-            # If the user didn't connect until activation_deadline; change status to "Active"
-            if not (
-                (user.online_at and base_time <= user.online_at)
-                or (
-                    user.activation_deadline
-                    and (user.activation_deadline <= now)
-                )
-            ):
-                continue
-
-            user.expire_date = datetime.utcnow() + timedelta(
-                seconds=user.usage_duration
-            )
-            user.expire_strategy = UserExpireStrategy.FIXED_DATE
-            db.commit()
-            db.refresh(user)
-            logger.info("on hold user `%s` has been activated", user.username)
+        for username in activated_usernames:
+            logger.info("on hold user `%s` has been activated", username)
